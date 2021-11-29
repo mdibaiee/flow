@@ -1,0 +1,33 @@
+collections:
+  examples/greetings:
+    schema:
+      properties:
+        count:
+          type: integer
+        message:
+          type: string
+      required:
+        - count
+        - message
+      type: object
+    key: [/count]
+
+captures:
+  capture/ingest:
+    endpoint:
+      ingest: {}
+    bindings:
+      - target: examples/greetings
+        resource: {name: ingest_test}
+
+materializations:
+  examples/ingest/views:
+    endpoint:
+      sqlite:
+        path: ../ingest.db?_journal=WAL
+    bindings:
+      - resource:
+          table: greetings
+        source: examples/greetings
+storageMappings:
+  "": { stores: [{ provider: S3, bucket: a-bucket }] }
