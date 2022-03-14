@@ -157,12 +157,12 @@ func (d *Driver) ApplyUpsert(ctx context.Context, req *pm.ApplyRequest) (*pm.App
 	}
 
 	// Insert or update the materialization specification.
-	var upsertSpecSQL string
-	if loaded == nil {
-		upsertSpecSQL = "INSERT INTO %s (version, spec, materialization) VALUES (%s, %s, %s);"
-	} else {
-		upsertSpecSQL = "UPDATE %s SET version = %s, spec = %s WHERE materialization = %s;"
+	// Note that we avoid an UPDATE statement since some SQL engines support delta updates only (no UPDATE statement)
+	var deleteSpecSQL string
+	if loaded != nil {
+		deleteSpecSQL = "DELETE FROM %s WHERE materialization = %s;"
 	}
+	upsertSpecSQL := "INSERT INTO %s (version, spec, materialization) VALUES (%s, %s, %s);"
 	specBytes, err := req.Materialization.Marshal()
 	if err != nil {
 		panic(err) // Cannot fail.
@@ -176,10 +176,15 @@ func (d *Driver) ApplyUpsert(ctx context.Context, req *pm.ApplyRequest) (*pm.App
 		generator.ValueRenderer.Render(base64.StdEncoding.EncodeToString(specBytes)),
 		generator.ValueRenderer.Render(req.Materialization.Materialization.String()),
 	)
+	deleteSpecSQL = fmt.Sprintf(deleteSpecSQL,
+		endpoint.FlowTables().Specs.Identifier,
+		generator.ValueRenderer.Render(req.Materialization.Materialization.String()),
+	)
 
 	var statements = []string{
 		createCheckpointsSQL,
 		createSpecsSQL,
+		deleteSpecSQL,
 		upsertSpecSQL,
 	}
 
